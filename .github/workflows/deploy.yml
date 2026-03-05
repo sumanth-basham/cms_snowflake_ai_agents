@@ -8,11 +8,16 @@
 # Required GitHub Secrets (set in repo Settings → Secrets → Actions):
 #   SNOWFLAKE_ACCOUNT        — e.g. xy12345.us-east-1
 #   SNOWFLAKE_USER           — service-account username
-#   SNOWFLAKE_PASSWORD       — password (or leave blank if using key-pair)
-#   SNOWFLAKE_PRIVATE_KEY    — contents of the PEM private key (key-pair auth)
 #   SNOWFLAKE_ROLE           — e.g. CMS_STARS_ADMIN
 #   SNOWFLAKE_WAREHOUSE      — e.g. CMS_STARS_WH
 #   SNOWFLAKE_DATABASE       — e.g. CMS_STARS_DB
+#
+# Authentication — choose ONE:
+#   SNOWFLAKE_PAT            — Programmatic Access Token (RECOMMENDED)
+#                              Generate: Snowflake UI → User Menu → My Profile
+#                              → Security → Programmatic Access Tokens → + New Token
+#   SNOWFLAKE_PRIVATE_KEY    — PEM private key contents (key-pair / JWT auth)
+#   SNOWFLAKE_PASSWORD       — password (least preferred)
 #
 # NOTE: Snowflake SQL (sql/setup.sql) cannot call Python scripts directly.
 # This workflow first runs setup.sql via "python -m python.main --step setup",
@@ -50,7 +55,6 @@ jobs:
     env:
       SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
       SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
-      SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
       SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_ROLE }}
       SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
       SNOWFLAKE_DATABASE: ${{ secrets.SNOWFLAKE_DATABASE }}
@@ -82,12 +86,23 @@ jobs:
         run: pip install -r requirements.txt
 
       # -----------------------------------------------------------------------
-      # 4. (Optional) Write private key to disk for key-pair auth
-      #    Set the SNOWFLAKE_PRIVATE_KEY secret if using key-pair authentication.
-      #    Leave the secret empty to use password auth instead.
+      # 4a. PAT authentication (RECOMMENDED)
+      #     Set the SNOWFLAKE_PAT secret to your Programmatic Access Token.
+      #     How to generate:
+      #       Snowflake UI → User Menu → My Profile →
+      #       Security → Programmatic Access Tokens → + New Token
+      #     The Python connector uses authenticator=oauth + token=<PAT>.
       # -----------------------------------------------------------------------
-      - name: Write Snowflake private key
-        if: secrets.SNOWFLAKE_PRIVATE_KEY != ''
+      - name: Configure PAT authentication
+        if: secrets.SNOWFLAKE_PAT != ''
+        run: echo "SNOWFLAKE_PAT=${{ secrets.SNOWFLAKE_PAT }}" >> $GITHUB_ENV
+
+      # -----------------------------------------------------------------------
+      # 4b. Key-pair (JWT) authentication — fallback if PAT is not set.
+      #     Set the SNOWFLAKE_PRIVATE_KEY secret to the PEM file contents.
+      # -----------------------------------------------------------------------
+      - name: Configure key-pair authentication
+        if: secrets.SNOWFLAKE_PAT == '' && secrets.SNOWFLAKE_PRIVATE_KEY != ''
         env:
           SNOWFLAKE_PRIVATE_KEY: ${{ secrets.SNOWFLAKE_PRIVATE_KEY }}
         run: |
@@ -96,6 +111,14 @@ jobs:
           chmod 600 ~/.snowflake/rsa_key.p8
           echo "SNOWFLAKE_PRIVATE_KEY_PATH=$HOME/.snowflake/rsa_key.p8" >> $GITHUB_ENV
           echo "SNOWFLAKE_AUTHENTICATOR=snowflake_jwt" >> $GITHUB_ENV
+
+      # -----------------------------------------------------------------------
+      # 4c. Password authentication — last-resort fallback.
+      #     Set the SNOWFLAKE_PASSWORD secret if neither PAT nor key-pair is used.
+      # -----------------------------------------------------------------------
+      - name: Configure password authentication
+        if: secrets.SNOWFLAKE_PAT == '' && secrets.SNOWFLAKE_PRIVATE_KEY == '' && secrets.SNOWFLAKE_PASSWORD != ''
+        run: echo "SNOWFLAKE_PASSWORD=${{ secrets.SNOWFLAKE_PASSWORD }}" >> $GITHUB_ENV
 
       # -----------------------------------------------------------------------
       # 5. Step 1 — SQL setup: creates database, schemas, and all tables

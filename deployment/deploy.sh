@@ -11,6 +11,22 @@
 #   ./deployment/deploy.sh --step deploy_agents     # deploy Cortex Agents
 #   ./deployment/deploy.sh --step all               # run all steps in order
 #
+# Authentication (choose ONE — set in .env or as environment variables):
+#
+#   METHOD 1 — PAT (Programmatic Access Token)  [RECOMMENDED for CI/CD]
+#     1. Snowflake UI → User Menu → My Profile → Security →
+#        Programmatic Access Tokens → + New Token
+#     2. Copy the token value.
+#     3. Add to .env:  SNOWFLAKE_PAT=<token_value>
+#     The Python connector will automatically use authenticator=oauth + token.
+#
+#   METHOD 2 — Key-pair (JWT)
+#     Add to .env:  SNOWFLAKE_AUTHENTICATOR=snowflake_jwt
+#                   SNOWFLAKE_PRIVATE_KEY_PATH=/path/to/rsa_key.p8
+#
+#   METHOD 3 — Password
+#     Add to .env:  SNOWFLAKE_PASSWORD=<password>
+#
 # NOTE: Snowflake SQL (setup.sql) cannot call Python scripts directly.
 # This script executes the Python pipeline steps that must follow the SQL setup.
 # Steps run by python/main.py:
@@ -51,6 +67,17 @@ fi
 # Validate required Snowflake credentials are present
 : "${SNOWFLAKE_ACCOUNT:?SNOWFLAKE_ACCOUNT must be set}"
 : "${SNOWFLAKE_USER:?SNOWFLAKE_USER must be set}"
+
+# Report which auth method will be used (without printing secret values)
+if [ -n "${SNOWFLAKE_PAT:-}" ]; then
+  echo "Auth method:  PAT (Programmatic Access Token)"
+elif [ -n "${SNOWFLAKE_PRIVATE_KEY_PATH:-}" ]; then
+  echo "Auth method:  key-pair (JWT)"
+elif [ -n "${SNOWFLAKE_PASSWORD:-}" ]; then
+  echo "Auth method:  password"
+else
+  echo "WARNING: No authentication credential found (PAT, key-pair, or password)."
+fi
 
 cd "${PROJECT_ROOT}"
 
