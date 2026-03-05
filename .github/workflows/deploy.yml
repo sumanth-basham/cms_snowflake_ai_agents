@@ -98,26 +98,24 @@ jobs:
         run: echo "SNOWFLAKE_PAT=${{ secrets.SNOWFLAKE_PAT }}" >> $GITHUB_ENV
 
       # -----------------------------------------------------------------------
-      # 4b. Key-pair (JWT) authentication — fallback if PAT is not set.
-      #     Set the SNOWFLAKE_PRIVATE_KEY secret to the PEM file contents.
-      # -----------------------------------------------------------------------
-      - name: Configure key-pair authentication
-        if: secrets.SNOWFLAKE_PAT == '' && secrets.SNOWFLAKE_PRIVATE_KEY != ''
-        env:
-          SNOWFLAKE_PRIVATE_KEY: ${{ secrets.SNOWFLAKE_PRIVATE_KEY }}
-        run: |
-          mkdir -p ~/.snowflake
-          printf '%s' "${SNOWFLAKE_PRIVATE_KEY}" > ~/.snowflake/rsa_key.p8
-          chmod 600 ~/.snowflake/rsa_key.p8
-          echo "SNOWFLAKE_PRIVATE_KEY_PATH=$HOME/.snowflake/rsa_key.p8" >> $GITHUB_ENV
-          echo "SNOWFLAKE_AUTHENTICATOR=snowflake_jwt" >> $GITHUB_ENV
+      # 4b. Key-pair (JWT) authentication — currently DISABLED.
+      #     NOTE: The Python connection config does not yet consume
+      #     SNOWFLAKE_PRIVATE_KEY_PATH or pass a private key parameter to the
+      #     Snowflake connector. To avoid a non-functional "fallback", the
+      #     key-pair/JWT path is disabled until the Python code supports it.
+      #     For now, use either:
+      #       - Programmatic Access Token (SNOWFLAKE_PAT), or
+      #       - Password authentication (SNOWFLAKE_PASSWORD) as a fallback.
+      #
+      #     When key-pair auth is implemented in the Python layer, this section
+      #     can be re-enabled and wired to the expected environment variables.
 
       # -----------------------------------------------------------------------
       # 4c. Password authentication — last-resort fallback.
-      #     Set the SNOWFLAKE_PASSWORD secret if neither PAT nor key-pair is used.
+      #     Set the SNOWFLAKE_PASSWORD secret if PAT is not used.
       # -----------------------------------------------------------------------
       - name: Configure password authentication
-        if: secrets.SNOWFLAKE_PAT == '' && secrets.SNOWFLAKE_PRIVATE_KEY == '' && secrets.SNOWFLAKE_PASSWORD != ''
+        if: secrets.SNOWFLAKE_PAT == '' && secrets.SNOWFLAKE_PASSWORD != ''
         run: echo "SNOWFLAKE_PASSWORD=${{ secrets.SNOWFLAKE_PASSWORD }}" >> $GITHUB_ENV
 
       # -----------------------------------------------------------------------
