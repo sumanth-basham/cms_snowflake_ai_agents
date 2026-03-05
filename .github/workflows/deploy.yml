@@ -58,6 +58,8 @@ jobs:
       SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_ROLE }}
       SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
       SNOWFLAKE_DATABASE: ${{ secrets.SNOWFLAKE_DATABASE }}
+      SNOWFLAKE_PAT: ${{ secrets.SNOWFLAKE_PAT }}
+      SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
       SNOWFLAKE_SCHEMA: SCHEMA_GOLD
       CORTEX_LLM_MODEL: mistral-large2
       CORTEX_EMBED_MODEL: snowflake-arctic-embed-l-v2.0
@@ -86,37 +88,17 @@ jobs:
         run: pip install -r requirements.txt
 
       # -----------------------------------------------------------------------
-      # 4a. PAT authentication (RECOMMENDED)
-      #     Set the SNOWFLAKE_PAT secret to your Programmatic Access Token.
-      #     How to generate:
-      #       Snowflake UI → User Menu → My Profile →
-      #       Security → Programmatic Access Tokens → + New Token
-      #     The Python connector uses authenticator=oauth + token=<PAT>.
-      # -----------------------------------------------------------------------
-      - name: Configure PAT authentication
-        if: secrets.SNOWFLAKE_PAT != ''
-        run: echo "SNOWFLAKE_PAT=${{ secrets.SNOWFLAKE_PAT }}" >> $GITHUB_ENV
-
-      # -----------------------------------------------------------------------
-      # 4b. Key-pair (JWT) authentication — currently DISABLED.
-      #     NOTE: The Python connection config does not yet consume
-      #     SNOWFLAKE_PRIVATE_KEY_PATH or pass a private key parameter to the
-      #     Snowflake connector. To avoid a non-functional "fallback", the
-      #     key-pair/JWT path is disabled until the Python code supports it.
-      #     For now, use either:
-      #       - Programmatic Access Token (SNOWFLAKE_PAT), or
-      #       - Password authentication (SNOWFLAKE_PASSWORD) as a fallback.
+      # 4. Authentication — the job-level env block above exposes whichever
+      #    secrets are configured.  The Python layer (config.py) applies this
+      #    priority order automatically:
+      #      a. PAT   — SNOWFLAKE_PAT set → authenticator=oauth + token=<PAT>
+      #      b. Key-pair — SNOWFLAKE_AUTHENTICATOR=snowflake_jwt (future)
+      #      c. Password — SNOWFLAKE_PASSWORD set (least preferred)
       #
-      #     When key-pair auth is implemented in the Python layer, this section
-      #     can be re-enabled and wired to the expected environment variables.
-
+      #    To generate a PAT:
+      #      Snowflake UI → User Menu → My Profile →
+      #      Security → Programmatic Access Tokens → + New Token
       # -----------------------------------------------------------------------
-      # 4c. Password authentication — last-resort fallback.
-      #     Set the SNOWFLAKE_PASSWORD secret if PAT is not used.
-      # -----------------------------------------------------------------------
-      - name: Configure password authentication
-        if: secrets.SNOWFLAKE_PAT == '' && secrets.SNOWFLAKE_PASSWORD != ''
-        run: echo "SNOWFLAKE_PASSWORD=${{ secrets.SNOWFLAKE_PASSWORD }}" >> $GITHUB_ENV
 
       # -----------------------------------------------------------------------
       # 5. Step 1 — SQL setup: creates database, schemas, and all tables
