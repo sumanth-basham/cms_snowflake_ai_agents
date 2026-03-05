@@ -1,0 +1,152 @@
+# =============================================================================
+# phi_classification.yaml — PHI/PII Data Classification Registry
+#
+# Governance tier: MANDATORY for production
+# Regulatory basis: HIPAA Safe Harbor and Limited Dataset rules
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Classification levels
+# ---------------------------------------------------------------------------
+
+levels:
+  PHI_HIGH:
+    description: >
+      Direct identifiers under HIPAA Safe Harbor (18 identifiers).
+      Examples: name, SSN, MBI, DOB, full address, phone.
+      MUST be masked or removed for non-treatment purposes.
+    handling: |
+      - Never include in LLM prompts or agent context
+      - Always apply dynamic masking policies
+      - Row-level access required
+      - Encrypted at rest and in transit
+      - Audit log every access
+
+  PHI_MEDIUM:
+    description: >
+      Quasi-identifiers: state, birth year, age band, zip (first 3 digits),
+      gender, fill dates, drug class.
+      Individually low risk but may re-identify when combined.
+    handling: |
+      - Apply masking or aggregation in public-facing outputs
+      - Suppress small cells (<11 members) in aggregated reports
+      - Avoid concatenating multiple quasi-identifiers in queries
+      - Role-based access recommended
+
+  PHI_LOW:
+    description: >
+      De-identified or aggregated data: measure rates, contract-level summaries,
+      drug reference (no member linkage), provider NPI (public information).
+    handling: |
+      - Standard access controls
+      - Appropriate for analytics and reporting
+
+  NONE:
+    description: >
+      No PHI. Measure definitions, document chunks, configuration data.
+    handling: |
+      - Standard read access
+
+# ---------------------------------------------------------------------------
+# Table classification registry
+# ---------------------------------------------------------------------------
+
+tables:
+  SCHEMA_RAW.RAW_MEMBERS:
+    phi_level: PHI_HIGH
+    phi_fields: [member_id]
+    quasi_identifier_fields: [state_code, birth_year, gender_code, enrollment_start_date]
+    masking_applied: true
+
+  SCHEMA_RAW.RAW_PHARMACY_CLAIMS:
+    phi_level: PHI_HIGH
+    phi_fields: [member_id]
+    quasi_identifier_fields: [fill_date, ndc, pharmacy_npi, prescriber_npi]
+    masking_applied: true
+
+  SCHEMA_RAW.RAW_MTM_INTERVENTIONS:
+    phi_level: PHI_HIGH
+    phi_fields: [member_id]
+    masking_applied: true
+
+  SCHEMA_RAW.RAW_PATIENT_SAFETY_GAPS:
+    phi_level: PHI_HIGH
+    phi_fields: [member_id]
+    masking_applied: true
+
+  SCHEMA_RAW.RAW_DOCUMENT_CHUNKS:
+    phi_level: NONE
+    notes: Document content must be reviewed before loading — no PHI allowed in chunks
+
+  SCHEMA_CURATED.MEMBERS:
+    phi_level: PHI_HIGH
+    masking_applied: true
+    row_access_policy: CONTRACT_ROW_ACCESS
+
+  SCHEMA_CURATED.PHARMACY_CLAIMS:
+    phi_level: PHI_HIGH
+    masking_applied: true
+
+  SCHEMA_CURATED.MEASURE_DEFINITIONS:
+    phi_level: NONE
+
+  SCHEMA_GOLD.STARS_MEASURE_FACT:
+    phi_level: PHI_HIGH
+    masking_applied: true
+    row_access_policy: CONTRACT_ROW_ACCESS
+
+  SCHEMA_GOLD.CONTRACT_PERFORMANCE_SUMMARY:
+    phi_level: PHI_LOW
+    notes: Aggregated — no member IDs. Small-cell suppression applied.
+
+  SCHEMA_GOLD.MEMBER_RISK_PROFILE:
+    phi_level: PHI_HIGH
+    masking_applied: true
+
+  SCHEMA_GOLD.AGENT_AUDIT_LOG:
+    phi_level: PHI_MEDIUM
+    notes: >
+      Query summaries must not contain PHI. Responses are sanitized.
+      member_count_in_scope is a count — not member IDs.
+
+  SCHEMA_GOLD.INTERVENTION_RECOMMENDATIONS:
+    phi_level: PHI_HIGH
+    masking_applied: true
+    notes: recommendation_text must not contain PHI
+
+# ---------------------------------------------------------------------------
+# Prompt engineering PHI safety rules
+# ---------------------------------------------------------------------------
+
+prompt_phi_rules:
+  - id: NO_PHI_IN_PROMPT
+    rule: >
+      Member names, MBIs, SSNs, full DOB, addresses, and phone numbers
+      MUST NOT be included in any LLM prompt or agent context.
+    enforcement: MANDATORY
+    implementation: >
+      Agents receive only member_surrogate_id (synthetic ID).
+      PHI lookup from claims data is done via SQL tools — results
+      are aggregated or filtered before being passed to the LLM.
+
+  - id: SMALL_CELL_SUPPRESSION
+    rule: >
+      Aggregated outputs with fewer than 11 members in a cell
+      MUST be suppressed before returning to the user.
+    enforcement: MANDATORY
+    implementation: Enforced in gap_detection_tools.py and performance_tools.py
+
+  - id: NO_MEMBER_ID_IN_RECOMMENDATION_TEXT
+    rule: >
+      Intervention recommendation text stored in AGENT_AUDIT_LOG.response_summary
+      and INTERVENTION_RECOMMENDATIONS.recommendation_text must not contain
+      member identifiers, names, or contact information.
+    enforcement: MANDATORY
+
+  - id: DOCUMENT_CHUNK_PHI_CHECK
+    rule: >
+      All document chunks loaded into RAW_DOCUMENT_CHUNKS must be reviewed
+      to ensure they do not contain member PHI. CMS/PQA measure documents
+      are public — no PHI expected. Policy docs must be reviewed.
+    enforcement: MANDATORY
+    responsibility: data_engineering

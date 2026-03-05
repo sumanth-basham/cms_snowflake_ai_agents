@@ -1,0 +1,79 @@
+# =============================================================================
+# hrm_v1.yaml — High-Risk Medication (HRM) Measure Rule Metadata
+#
+# Content library: _rules/
+# Maps to: content_library/_rules/ in sfguide-agentic-ai-for-asset-management
+#
+# IMPORTANT DISCLAIMER:
+# =====================
+# This file contains ARCHITECTURAL DESIGN PATTERNS for configuring measure
+# logic in a metadata-driven system. It is NOT an official CMS or PQA
+# measure specification.
+#
+# Fields marked spec_confirmed: false are ASSUMPTIONS that require validation
+# by qualified clinical/regulatory SMEs against official CMS/PQA technical
+# specifications before use in production measure calculations.
+#
+# Always refer to the official CMS Medicare Part D Stars Technical Notes
+# and PQA measure specifications for authoritative measure logic.
+# =============================================================================
+
+measure_code: HRM_V1
+measure_name: High-Risk Medication (HRM) in Older Adults
+measure_domain: HRM
+version: "2024.1"
+measurement_year: 2024
+effective_start_date: "2024-01-01"
+effective_end_date: "2024-12-31"
+spec_confirmed: false
+
+star_rating_direction: LOWER_IS_BETTER
+
+description: >
+  [ASSUMPTION — requires SME validation]
+  Identifies the percentage of Medicare Part D beneficiaries 65 years or older
+  who received at least one high-risk medication (HRM) during the measurement year.
+  A lower rate is better.
+
+denominator_logic_summary: >
+  [ASSUMPTION — requires SME validation]
+  Medicare Part D enrollees age 65 and older who were continuously enrolled
+  during the measurement year. Specific continuous enrollment thresholds
+  must be confirmed against official CMS specifications.
+
+numerator_logic_summary: >
+  [ASSUMPTION — requires SME validation]
+  Members in the denominator who had at least one pharmacy claim for a
+  high-risk medication (HRM) during the measurement year.
+  The HRM drug list must be sourced from official CMS/PQA technical documents.
+
+exclusion_logic_summary: >
+  [ASSUMPTION — requires SME validation]
+  Certain exclusions may apply (e.g., hospice enrollment, specific clinical
+  exceptions). Refer to official CMS technical specifications for confirmed
+  exclusion criteria.
+
+hrm_drug_list_note: >
+  The list of drugs classified as High-Risk Medications is defined by
+  official CMS/PQA specifications and is updated annually.
+  DO NOT use a self-constructed drug list for production measure calculations.
+  The is_high_risk_elderly flag in the drug reference table is a placeholder
+  and requires validation against the official HRM drug list for the measurement year.
+
+pdc_threshold: null
+
+assumptions:
+  - "Age threshold of 65 years is assumed based on published literature; confirm with CMS spec"
+  - "Continuous enrollment definition assumed to be 12 months; confirm with CMS spec"
+  - "HRM drug list is a placeholder — official list required from CMS/PQA"
+  - "Exclusion criteria are placeholders — official list required"
+
+sme_validation_required:
+  - "Confirm age eligibility threshold"
+  - "Confirm continuous enrollment definition"
+  - "Obtain and validate official HRM drug list for measurement year"
+  - "Confirm all exclusion criteria"
+  - "Confirm star cut points for each rating level"
+
+last_updated: "2024-01-01"
+updated_by: "architecture_team"

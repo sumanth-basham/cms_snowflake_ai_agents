@@ -1,0 +1,124 @@
+# =============================================================================
+# stars_performance_model.yaml
+# Cortex Analyst Semantic Model — Stars Performance Analytics
+#
+# Maps to: python/create_semantic_views.py pattern in reference repo
+# Adapted for: Medicare Part D Patient Safety Stars
+#
+# NOTE: This is an illustrative semantic model structure.
+# Table and column names must match the actual Snowflake objects created in setup.sql.
+# =============================================================================
+
+name: stars_performance_model
+description: >
+  Semantic model for Medicare Part D Stars measure performance analytics.
+  Covers contract-level and plan-level measure rates, trend analysis, and
+  gap closure tracking. Aggregated — no individual member PHI.
+
+tables:
+  - name: contract_performance
+    description: >
+      Contract-level Stars measure performance by year.
+      Grain: one row per contract per measure per measurement year.
+    base_table: CMS_STARS_DB.SCHEMA_GOLD.CONTRACT_PERFORMANCE_SUMMARY
+    primary_key: summary_id
+    columns:
+      - name: contract_id
+        description: CMS contract (H-number)
+        data_type: VARCHAR
+        is_dimension: true
+
+      - name: measure_code
+        description: Stars measure code (e.g. HRM_V1, SUPD_V1, PDC_STATIN)
+        data_type: VARCHAR
+        is_dimension: true
+
+      - name: measurement_year
+        description: Stars measurement year (e.g. 2024)
+        data_type: INTEGER
+        is_dimension: true
+
+      - name: denominator_count
+        description: Total members in the measure denominator
+        data_type: INTEGER
+        is_measure: true
+        aggregation: SUM
+
+      - name: numerator_count
+        description: Total members meeting the measure numerator
+        data_type: INTEGER
+        is_measure: true
+        aggregation: SUM
+
+      - name: excluded_count
+        description: Total members excluded from the measure
+        data_type: INTEGER
+        is_measure: true
+        aggregation: SUM
+
+      - name: measure_rate
+        description: Measure rate (numerator / denominator). Ranges 0.0 to 1.0.
+        data_type: DECIMAL
+        is_measure: true
+        aggregation: AVG
+        format: percentage
+
+      - name: estimated_star_rating
+        description: >
+          Estimated star rating using internally computed cut points.
+          WARNING: Official star ratings are published by CMS.
+          This field REQUIRES validation against official CMS cut point tables.
+        data_type: DECIMAL
+        is_measure: true
+        aggregation: AVG
+        caveats: "Requires official CMS cut point validation before reporting"
+
+  - name: measure_definitions
+    description: >
+      Measure definition metadata including denominator/numerator descriptions and version.
+    base_table: CMS_STARS_DB.SCHEMA_CURATED.MEASURE_DEFINITIONS
+    primary_key: measure_code
+    columns:
+      - name: measure_code
+        data_type: VARCHAR
+        is_dimension: true
+
+      - name: measure_name
+        data_type: VARCHAR
+        is_dimension: true
+
+      - name: measure_domain
+        description: Measure domain (HRM, DDI, SUPD, PDC, MTM, CMR)
+        data_type: VARCHAR
+        is_dimension: true
+
+      - name: star_rating_direction
+        description: HIGHER_IS_BETTER or LOWER_IS_BETTER
+        data_type: VARCHAR
+        is_dimension: true
+
+      - name: spec_confirmed
+        description: Whether measure logic is validated against official spec
+        data_type: BOOLEAN
+        is_dimension: true
+
+relationships:
+  - left_table: contract_performance
+    right_table: measure_definitions
+    join_type: LEFT
+    left_key: measure_code
+    right_key: measure_code
+
+metrics:
+  - name: gap_closure_rate
+    description: Percentage of open gaps that have been closed
+    expression: >
+      CASE WHEN denominator_count > 0
+        THEN 1.0 - (numerator_count::DECIMAL / denominator_count)
+        ELSE NULL END
+    format: percentage
+
+  - name: year_over_year_rate_change
+    description: Change in measure rate compared to prior measurement year
+    expression: "measure_rate - LAG(measure_rate) OVER (PARTITION BY contract_id, measure_code ORDER BY measurement_year)"
+    format: percentage

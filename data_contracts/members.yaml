@@ -1,0 +1,107 @@
+# =============================================================================
+# members.yaml — Data contract for MEMBERS table
+# =============================================================================
+
+name: MEMBERS
+schema: SCHEMA_CURATED
+database: CMS_STARS_DB
+grain: one row per member (current record)
+phi_level: HIGH
+description: >
+  Medicare Part D enrolled members. Contains de-identified demographic and
+  enrollment attributes. member_id is a synthetic surrogate — not a real MBI.
+
+owner: data_engineering
+steward: quality_analytics
+
+columns:
+  member_id:
+    description: Surrogate member identifier (de-identified)
+    data_type: VARCHAR(20)
+    nullable: false
+    phi_level: HIGH
+    masking_policy: MASK_MEMBER_ID
+    notes: This is NOT a real Medicare Beneficiary Identifier (MBI)
+
+  contract_id:
+    description: CMS contract ID (H-number)
+    data_type: VARCHAR(10)
+    nullable: false
+    phi_level: LOW
+
+  plan_id:
+    description: PBP plan ID within the contract
+    data_type: VARCHAR(10)
+    phi_level: LOW
+
+  state_code:
+    description: Member state of residence (2-letter)
+    data_type: VARCHAR(2)
+    phi_level: MEDIUM
+    notes: State alone is a quasi-identifier; combined with other fields may identify individuals
+
+  birth_year:
+    description: Year of birth (not full date of birth)
+    data_type: INTEGER
+    phi_level: MEDIUM
+    notes: Full DOB is NOT stored. Year of birth reduces re-identification risk.
+
+  age_band:
+    description: Derived age band (e.g. 65-69, 70-74, 75-79, 80+)
+    data_type: VARCHAR(20)
+    phi_level: LOW
+    derivation: "CASE WHEN birth_year >= YEAR(CURRENT_DATE()) - 69 THEN '65-69' ... END"
+
+  gender_code:
+    description: Gender code (M, F, U)
+    data_type: VARCHAR(1)
+    phi_level: MEDIUM
+
+  low_income_subsidy_code:
+    description: Low Income Subsidy level (LIS_FULL, LIS_PARTIAL, NON_LIS)
+    data_type: VARCHAR(20)
+    phi_level: LOW
+
+  enrollment_start_date:
+    description: Effective enrollment start date
+    data_type: DATE
+    phi_level: MEDIUM
+
+  enrollment_end_date:
+    description: Effective enrollment end date (NULL if currently enrolled)
+    data_type: DATE
+    phi_level: MEDIUM
+
+  is_active:
+    description: TRUE if member is currently enrolled
+    data_type: BOOLEAN
+
+  continuous_enrollment_days:
+    description: Days continuously enrolled in measurement year
+    data_type: INTEGER
+    derivation: "DATEDIFF(day, enrollment_start_date, LEAST(enrollment_end_date, year_end))"
+    notes: Used in measure denominator logic for continuous enrollment requirement
+
+data_quality_rules:
+  - rule: member_id_not_null
+    check: "member_id IS NOT NULL"
+    severity: CRITICAL
+
+  - rule: contract_id_format
+    check: "contract_id REGEXP '^H[0-9]{4}$'"
+    severity: HIGH
+    notes: CMS H-numbers follow H followed by 4 digits (inferred — verify format)
+
+  - rule: birth_year_range
+    check: "birth_year BETWEEN 1900 AND YEAR(CURRENT_DATE()) - 18"
+    severity: HIGH
+
+  - rule: enrollment_dates_logical
+    check: "enrollment_end_date IS NULL OR enrollment_end_date >= enrollment_start_date"
+    severity: CRITICAL
+
+common_issues:
+  - "Duplicate member_id from multiple source system loads"
+  - "Missing enrollment_end_date for terminated members"
+  - "birth_year populated with full DOB in error — must be scrubbed"
+  - "state_code NULL for members with incomplete enrollment records"
