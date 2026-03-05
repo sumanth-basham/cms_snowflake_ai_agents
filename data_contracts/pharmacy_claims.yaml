@@ -1,0 +1,133 @@
+# =============================================================================
+# pharmacy_claims.yaml — Data contract for PHARMACY_CLAIMS table
+# =============================================================================
+
+name: PHARMACY_CLAIMS
+schema: SCHEMA_CURATED
+database: CMS_STARS_DB
+grain: one row per claim line (dispensing event)
+phi_level: HIGH
+description: >
+  Curated pharmacy claims data. Includes NDC-level drug information,
+  days supply, fill date, pharmacy and prescriber NPI.
+  Used as primary source for Stars measure gap detection and adherence calculation.
+
+owner: data_engineering
+steward: quality_analytics
+
+columns:
+  claim_id:
+    description: Unique claim identifier
+    data_type: VARCHAR(50)
+    nullable: false
+    phi_level: LOW
+
+  member_id:
+    description: De-identified surrogate member ID (links to MEMBERS)
+    data_type: VARCHAR(20)
+    nullable: false
+    phi_level: HIGH
+    masking_policy: MASK_MEMBER_ID
+
+  contract_id:
+    description: CMS contract ID
+    data_type: VARCHAR(10)
+    nullable: false
+    phi_level: LOW
+
+  ndc:
+    description: National Drug Code (11-digit)
+    data_type: VARCHAR(11)
+    phi_level: MEDIUM
+    notes: "NDC alone is not PHI but combined with member_id links to medication history"
+
+  rxnorm_cui:
+    description: RxNorm Concept Unique Identifier (resolved from drug reference)
+    data_type: VARCHAR(20)
+    phi_level: LOW
+
+  drug_name:
+    description: Generic drug name (from drug reference)
+    data_type: VARCHAR(200)
+    phi_level: LOW
+
+  therapeutic_class:
+    description: Drug therapeutic class
+    data_type: VARCHAR(100)
+    phi_level: LOW
+
+  is_high_risk_elderly:
+    description: >
+      TRUE if drug appears on high-risk elderly medication lists.
+      ASSUMPTION: This field requires validation against official HRM measure specifications.
+      Do NOT use for official reporting without SME confirmation.
+    data_type: BOOLEAN
+    phi_level: LOW
+    spec_confirmed: false
+
+  days_supply:
+    description: Days supply dispensed per fill
+    data_type: INTEGER
+    phi_level: LOW
+
+  fill_date:
+    description: Date prescription was filled
+    data_type: DATE
+    phi_level: MEDIUM
+    notes: Date alone may be quasi-identifier in small populations
+
+  quantity_dispensed:
+    description: Quantity of drug dispensed
+    data_type: DECIMAL(10,2)
+    phi_level: LOW
+
+  pharmacy_npi:
+    description: Dispensing pharmacy NPI
+    data_type: VARCHAR(10)
+    phi_level: LOW
+    notes: "NPI is public information but identifies a provider"
+
+  prescriber_npi:
+    description: Prescribing provider NPI
+    data_type: VARCHAR(10)
+    phi_level: LOW
+
+  paid_amount:
+    description: Amount paid by plan (plan cost share)
+    data_type: DECIMAL(12,2)
+    phi_level: LOW
+
+  measurement_year:
+    description: Stars measurement year
+    data_type: INTEGER
+    phi_level: NONE
+
+data_quality_rules:
+  - rule: valid_ndc_length
+    check: "LENGTH(ndc) = 11"
+    severity: HIGH
+
+  - rule: positive_days_supply
+    check: "days_supply > 0 AND days_supply <= 365"
+    severity: HIGH
+
+  - rule: fill_date_not_future
+    check: "fill_date <= CURRENT_DATE()"
+    severity: CRITICAL
+
+  - rule: member_id_exists
+    check: "member_id IN (SELECT member_id FROM SCHEMA_CURATED.MEMBERS)"
+    severity: HIGH
+
+common_issues:
+  - "Duplicate claims from adjudication system resubmissions"
+  - "days_supply = 0 for some claim types (must be excluded from PDC calculations)"
+  - "NDC zeros padding varies by source system (10-digit vs 11-digit)"
+  - "fill_date in future due to pre-dated prescriptions"
+  - "Missing prescriber_npi for mail-order pharmacy claims"
+
+pdc_calculation_notes: >
+  ASSUMPTION: PDC = (sum of days supply within measurement period) / (days in measurement period).
+  The exact denominator definition (enrollment-adjusted vs calendar year) and
+  the treatment of overlapping fills MUST be validated against official CMS/PQA
+  technical specifications before use in production measure calculation.

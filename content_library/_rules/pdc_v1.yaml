@@ -1,0 +1,70 @@
+# =============================================================================
+# pdc_v1.yaml — Proportion of Days Covered (PDC) Adherence Measure Rules
+#
+# Content library: _rules/
+#
+# IMPORTANT DISCLAIMER:
+# =====================
+# This file is an ARCHITECTURAL PATTERN for metadata-driven measure configuration.
+# NOT an official CMS or PQA measure specification.
+# All logic marked spec_confirmed: false requires SME validation.
+# =============================================================================
+
+measure_code: PDC_STATIN
+measure_name: Medication Adherence for Cholesterol (Statins)
+measure_domain: PDC
+version: "2024.1"
+measurement_year: 2024
+spec_confirmed: false
+
+star_rating_direction: HIGHER_IS_BETTER
+
+description: >
+  [ASSUMPTION — requires SME validation]
+  Measures the percentage of Medicare Part D beneficiaries with a statin
+  prescription who are adherent based on the Proportion of Days Covered (PDC).
+  PDC >= 0.80 (80%) is the standard adherence threshold.
+  This threshold must be confirmed against official CMS/PQA specifications.
+
+denominator_logic_summary: >
+  [ASSUMPTION]
+  Members who had at least one statin pharmacy claim during the measurement year
+  and meet continuous enrollment requirements. Specific drug list and enrollment
+  thresholds require CMS/PQA specification confirmation.
+
+numerator_logic_summary: >
+  [ASSUMPTION]
+  Members in the denominator with PDC >= 0.80 (80%) during the measurement year.
+  PDC calculation: sum of covered days / number of days in the measurement period.
+  Overlapping fill handling and measurement period start/end definitions
+  require CMS/PQA specification confirmation.
+
+pdc_threshold: 0.80
+pdc_threshold_note: >
+  The 80% PDC threshold is widely cited in literature and PQA guidance.
+  [ASSUMPTION] Confirm exact threshold and calculation methodology from official spec.
+
+pdc_calculation_assumptions:
+  - "Measurement period: January 1 through December 31 of measurement year (assumed)"
+  - "Overlapping fills: advance the dispensing date by remaining days supply (assumed)"
+  - "Gaps in coverage: days without supply are non-covered days (assumed)"
+  - "Drug list: statins (HMG-CoA reductase inhibitors) — confirm from official drug list"
+
+related_measures:
+  - PDC_RASA
+  - PDC_DIAB
+
+assumptions:
+  - "Statin drug list is illustrative — official drug list required from CMS/PQA"
+  - "PDC 80% threshold is assumed; confirm with official spec"
+  - "Enrollment-adjusted measurement period details require confirmation"
+
+sme_validation_required:
+  - "Confirm exact statin drug list for measurement year"
+  - "Confirm PDC calculation methodology (overlapping fills treatment)"
+  - "Confirm continuous enrollment requirement"
+  - "Confirm measurement period boundaries"
+  - "Confirm numerator threshold (80%)"
+
+last_updated: "2024-01-01"
+updated_by: "architecture_team"

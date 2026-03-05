@@ -1,0 +1,147 @@
+# =============================================================================
+# member_risk_model.yaml
+# Cortex Analyst Semantic Model — Member Risk Profile
+#
+# NOTE: All analytics are de-identified. Member surrogate IDs only.
+# =============================================================================
+
+name: member_risk_model
+description: >
+  Semantic model for member-level risk profiling and patient safety gap analytics.
+  Uses de-identified surrogate member IDs. Supports cohort-level analysis.
+
+tables:
+  - name: member_risk_profile
+    description: >
+      Member risk profiles with safety gap flags and intervention history.
+      Grain: one row per member per measurement year.
+    base_table: CMS_STARS_DB.SCHEMA_GOLD.MEMBER_RISK_PROFILE
+    primary_key: profile_id
+    columns:
+      - name: member_surrogate_id
+        description: De-identified surrogate member identifier
+        data_type: VARCHAR
+        is_dimension: true
+        phi_level: MEDIUM
+
+      - name: contract_id
+        data_type: VARCHAR
+        is_dimension: true
+
+      - name: measurement_year
+        data_type: INTEGER
+        is_dimension: true
+
+      - name: overall_risk_score
+        description: Composite risk score 0.0 (low) to 1.0 (high)
+        data_type: DECIMAL
+        is_measure: true
+        aggregation: AVG
+
+      - name: hrm_risk_flag
+        description: TRUE if member at risk for High-Risk Medication measure
+        data_type: BOOLEAN
+        is_dimension: true
+
+      - name: ddi_risk_flag
+        description: TRUE if member at risk for Drug-Drug Interaction measure
+        data_type: BOOLEAN
+        is_dimension: true
+
+      - name: pdc_risk_flag
+        description: TRUE if member at risk for adherence (PDC) measure
+        data_type: BOOLEAN
+        is_dimension: true
+
+      - name: supd_risk_flag
+        description: TRUE if member at risk for Statin Use in Diabetes measure
+        data_type: BOOLEAN
+        is_dimension: true
+
+      - name: open_gap_count
+        description: Number of open quality gaps for this member
+        data_type: INTEGER
+        is_measure: true
+        aggregation: SUM
+
+      - name: intervention_count
+        description: Number of interventions attempted in measurement year
+        data_type: INTEGER
+        is_measure: true
+        aggregation: SUM
+
+      - name: priority_tier
+        description: HIGH, MEDIUM, or LOW priority for outreach
+        data_type: VARCHAR
+        is_dimension: true
+
+  - name: stars_measure_fact
+    description: >
+      Member-measure fact table. Supports gap identification queries.
+    base_table: CMS_STARS_DB.SCHEMA_GOLD.STARS_MEASURE_FACT
+    primary_key: fact_id
+    columns:
+      - name: member_surrogate_id
+        data_type: VARCHAR
+        is_dimension: true
+        phi_level: MEDIUM
+
+      - name: contract_id
+        data_type: VARCHAR
+        is_dimension: true
+
+      - name: measure_code
+        data_type: VARCHAR
+        is_dimension: true
+
+      - name: measurement_year
+        data_type: INTEGER
+        is_dimension: true
+
+      - name: in_denominator
+        data_type: BOOLEAN
+        is_dimension: true
+
+      - name: in_numerator
+        data_type: BOOLEAN
+        is_dimension: true
+
+      - name: excluded
+        data_type: BOOLEAN
+        is_dimension: true
+
+      - name: pdc_value
+        description: Proportion of Days Covered (for adherence measures)
+        data_type: DECIMAL
+        is_measure: true
+        aggregation: AVG
+
+      - name: risk_score
+        data_type: DECIMAL
+        is_measure: true
+        aggregation: AVG
+
+      - name: gap_status
+        description: OPEN, CLOSED, IN_PROGRESS, ESCALATED
+        data_type: VARCHAR
+        is_dimension: true
+
+relationships:
+  - left_table: member_risk_profile
+    right_table: stars_measure_fact
+    join_type: LEFT
+    left_key: member_surrogate_id
+    right_key: member_surrogate_id
+    additional_conditions: "member_risk_profile.measurement_year = stars_measure_fact.measurement_year"
+
+metrics:
+  - name: gap_rate
+    description: Proportion of denominator members who have an open gap
+    expression: >
+      COUNT(CASE WHEN gap_status = 'OPEN' THEN 1 END)::DECIMAL /
+      NULLIF(COUNT(CASE WHEN in_denominator = TRUE THEN 1 END), 0)
+    format: percentage
+
+  - name: high_risk_member_count
+    description: Count of members in HIGH priority tier
+    expression: "COUNT(CASE WHEN priority_tier = 'HIGH' THEN 1 END)"
