@@ -71,12 +71,17 @@ fi
 # Report which auth method will be used (without printing secret values)
 if [ -n "${SNOWFLAKE_PAT:-}" ]; then
   echo "Auth method:  PAT (Programmatic Access Token)"
-elif [ -n "${SNOWFLAKE_PRIVATE_KEY_PATH:-}" ]; then
+elif [ "${SNOWFLAKE_AUTHENTICATOR:-}" = "externalbrowser" ]; then
+  echo "Auth method:  externalbrowser (SSO)"
+elif [ -n "${SNOWFLAKE_PRIVATE_KEY_PATH:-}" ] || [ "${SNOWFLAKE_AUTHENTICATOR:-}" = "snowflake_jwt" ]; then
   echo "Auth method:  key-pair (JWT)"
 elif [ -n "${SNOWFLAKE_PASSWORD:-}" ]; then
   echo "Auth method:  password"
 else
-  echo "WARNING: No authentication credential found (PAT, key-pair, or password)."
+  echo "ERROR: No supported Snowflake authentication configured."
+  echo "       Set one of: SNOWFLAKE_PAT, SNOWFLAKE_PRIVATE_KEY_PATH + SNOWFLAKE_AUTHENTICATOR=snowflake_jwt,"
+  echo "       SNOWFLAKE_PASSWORD, or SNOWFLAKE_AUTHENTICATOR=externalbrowser."
+  exit 1
 fi
 
 cd "${PROJECT_ROOT}"
