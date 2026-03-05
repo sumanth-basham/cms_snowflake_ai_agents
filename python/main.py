@@ -86,8 +86,8 @@ def run_all() -> None:
     """Run the complete build pipeline."""
     run_setup()
     run_load_data()
-    run_build_semantic()
     run_build_search()
+    run_build_semantic()
     run_deploy_agents()
 
 
