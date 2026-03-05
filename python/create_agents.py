@@ -13,6 +13,7 @@ IMPORTANT: Agent instructions must be reviewed by clinical and compliance SMEs
 before production deployment.
 """
 
+import json
 import logging
 import os
 from pathlib import Path
@@ -83,7 +84,6 @@ def _build_tools_json(agent_name: str, config) -> str:
             }
         )
 
-    import json
     return json.dumps(tools, indent=2)
 
 
@@ -94,14 +94,17 @@ def create_agent(agent_name: str) -> None:
         raise ValueError(f"No config found for agent: {agent_name}")
 
     prompt = _load_prompt(agent_name)
-    prompt_escaped = prompt.replace("'", "''")
+    tools_json = _build_tools_json(agent_name, config)
 
+    # Use dollar-quoting ($$...$$) to avoid escaping issues with single quotes,
+    # backslashes, or newlines that may appear in prompts or JSON strings.
     sql = f"""
 CREATE OR REPLACE CORTEX AGENT {DATABASE}.{SCHEMA_RAW}.{agent_name}
   MODEL = '{config.cortex_model}'
+  TOOLS = PARSE_JSON($${tools_json}$$)
   COMMENT = '{config.description}'
   AS
-    SYSTEM_PROMPT = '{prompt_escaped}'
+    SYSTEM_PROMPT = $${prompt}$$
 """.strip()
 
     logger.info("Creating agent: %s", agent_name)
