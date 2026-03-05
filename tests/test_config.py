@@ -102,6 +102,45 @@ class TestSnowflakeConnectionConfig:
         d = config.to_dict()
         assert d["authenticator"] == "externalbrowser"
 
+    def test_pat_sets_oauth_authenticator_and_token(self):
+        """PAT auth must produce authenticator=oauth and token=<value>."""
+        config = SnowflakeConnectionConfig(
+            account="test", user="test_user", token="my-pat-token"
+        )
+        d = config.to_dict()
+        assert d["authenticator"] == "oauth"
+        assert d["token"] == "my-pat-token"
+        assert "password" not in d
+
+    def test_pat_takes_priority_over_password(self):
+        """When both PAT and password are supplied, PAT wins."""
+        config = SnowflakeConnectionConfig(
+            account="test", user="test_user",
+            password="secret", token="my-pat-token"
+        )
+        d = config.to_dict()
+        assert d["authenticator"] == "oauth"
+        assert d["token"] == "my-pat-token"
+        assert "password" not in d
+
+    def test_pat_takes_priority_over_explicit_authenticator(self):
+        """When both PAT and an explicit authenticator are supplied, PAT wins."""
+        config = SnowflakeConnectionConfig(
+            account="test", user="test_user",
+            authenticator="snowflake_jwt", token="my-pat-token"
+        )
+        d = config.to_dict()
+        assert d["authenticator"] == "oauth"
+        assert d["token"] == "my-pat-token"
+
+    def test_no_token_no_extra_keys(self):
+        """When no PAT is set, token must not appear in the dict."""
+        config = SnowflakeConnectionConfig(
+            account="test", user="test_user", password="pass"
+        )
+        d = config.to_dict()
+        assert "token" not in d
+
 
 class TestSchemaConstants:
     def test_schema_names_defined(self):
