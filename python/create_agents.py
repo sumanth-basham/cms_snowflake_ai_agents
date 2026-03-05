@@ -102,7 +102,7 @@ def create_agent(agent_name: str) -> None:
 CREATE OR REPLACE CORTEX AGENT {DATABASE}.{SCHEMA_RAW}.{agent_name}
   MODEL = '{config.cortex_model}'
   TOOLS = PARSE_JSON($${tools_json}$$)
-  COMMENT = '{config.description}'
+  COMMENT = $${config.description}$$
   AS
     SYSTEM_PROMPT = $${prompt}$$
 """.strip()
