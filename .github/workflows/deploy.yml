@@ -107,7 +107,7 @@ jobs:
           SNOWFLAKE_PRIVATE_KEY: ${{ secrets.SNOWFLAKE_PRIVATE_KEY }}
         run: |
           mkdir -p ~/.snowflake
-          echo "${SNOWFLAKE_PRIVATE_KEY}" > ~/.snowflake/rsa_key.p8
+          printf '%s' "${SNOWFLAKE_PRIVATE_KEY}" > ~/.snowflake/rsa_key.p8
           chmod 600 ~/.snowflake/rsa_key.p8
           echo "SNOWFLAKE_PRIVATE_KEY_PATH=$HOME/.snowflake/rsa_key.p8" >> $GITHUB_ENV
           echo "SNOWFLAKE_AUTHENTICATOR=snowflake_jwt" >> $GITHUB_ENV
