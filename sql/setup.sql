@@ -403,16 +403,16 @@ CREATE TABLE IF NOT EXISTS SCHEMA_GOLD.INTERVENTION_RECOMMENDATIONS (
 -- Step 2 — Generate and load synthetic sample data into Snowflake:
 --   python -m python.main --step load_data
 --
--- Step 3 — Build Cortex Search indexes (RAG retrieval layer):
---   python -m python.main --step build_search
---
--- Step 4 — Upload semantic model YAML files for Cortex Analyst:
+-- Step 3 — Upload semantic model YAML files for Cortex Analyst:
 --   python -m python.main --step build_semantic
+--
+-- Step 4 — Build Cortex Search indexes (RAG retrieval layer):
+--   python -m python.main --step build_search
 --
 -- Step 5 — Deploy all Cortex Agents:
 --   python -m python.main --step deploy_agents
 --
--- Or run all steps in sequence:
+-- Or run all steps in sequence (same order as above):
 --   python -m python.main --step all
 --
 -- Alternatively, use the deploy script:
