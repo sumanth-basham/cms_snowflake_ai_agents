@@ -121,7 +121,16 @@ RISK_SCORE_LOW = 0.25
 
 @dataclass
 class SnowflakeConnectionConfig:
-    """Snowflake connection configuration loaded from environment variables."""
+    """Snowflake connection configuration loaded from environment variables.
+
+    Authentication priority (first match wins):
+      1. PAT  — set SNOWFLAKE_PAT (Programmatic Access Token from Snowflake UI).
+                Automatically uses authenticator=oauth + token=<PAT>.
+      2. Key-pair — set SNOWFLAKE_AUTHENTICATOR=snowflake_jwt and point
+                SNOWFLAKE_PRIVATE_KEY_PATH at the PEM file.
+      3. SSO  — set SNOWFLAKE_AUTHENTICATOR=externalbrowser.
+      4. Password — set SNOWFLAKE_PASSWORD (least preferred for CI/CD).
+    """
     account: str = field(default_factory=lambda: os.getenv("SNOWFLAKE_ACCOUNT", ""))
     user: str = field(default_factory=lambda: os.getenv("SNOWFLAKE_USER", ""))
     password: str = field(default_factory=lambda: os.getenv("SNOWFLAKE_PASSWORD", ""))
@@ -132,9 +141,19 @@ class SnowflakeConnectionConfig:
     authenticator: Optional[str] = field(
         default_factory=lambda: os.getenv("SNOWFLAKE_AUTHENTICATOR", None)
     )
+    # Snowflake Programmatic Access Token (PAT).
+    # Generate one in the Snowflake UI: User Menu → My Profile → Security →
+    # Programmatic Access Tokens → + New Token.
+    token: Optional[str] = field(
+        default_factory=lambda: os.getenv("SNOWFLAKE_PAT", None)
+    )
 
     def to_dict(self) -> dict:
-        """Return connection parameters as a dict (excludes None values)."""
+        """Return connection parameters as a dict (excludes None values).
+
+        When a PAT is provided it takes priority over all other auth methods:
+          authenticator is forced to "oauth" and the token is passed directly.
+        """
         params = {
             "account": self.account,
             "user": self.user,
@@ -143,7 +162,11 @@ class SnowflakeConnectionConfig:
             "database": self.database,
             "schema": self.schema,
         }
-        if self.authenticator:
+        if self.token:
+            # PAT authentication — overrides any explicit authenticator value.
+            params["authenticator"] = "oauth"
+            params["token"] = self.token
+        elif self.authenticator:
             params["authenticator"] = self.authenticator
         elif self.password:
             params["password"] = self.password
