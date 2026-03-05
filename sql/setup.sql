@@ -383,3 +383,41 @@ CREATE TABLE IF NOT EXISTS SCHEMA_GOLD.INTERVENTION_RECOMMENDATIONS (
     analyst_notes         VARCHAR(2000),
     actioned_date         DATE
 );
+
+-- =============================================================================
+-- NEXT STEPS: Run Python scripts from your local machine or CI/CD pipeline
+-- =============================================================================
+--
+-- NOTE: Snowflake SQL cannot directly invoke external Python scripts.
+-- After this SQL setup completes, run the following Python steps from the
+-- command line (or let GitHub Actions handle them automatically — see
+-- .github/workflows/deploy.yml).
+--
+-- Prerequisites:
+--   pip install -r requirements.txt
+--   cp deployment/.env.template .env   # then fill in your credentials
+--
+-- Step 1 — SQL setup (this file — already done when you reach this point):
+--   python -m python.main --step setup
+--
+-- Step 2 — Generate and load synthetic sample data into Snowflake:
+--   python -m python.main --step load_data
+--
+-- Step 3 — Build Cortex Search indexes (RAG retrieval layer):
+--   python -m python.main --step build_search
+--
+-- Step 4 — Upload semantic model YAML files for Cortex Analyst:
+--   python -m python.main --step build_semantic
+--
+-- Step 5 — Deploy all Cortex Agents:
+--   python -m python.main --step deploy_agents
+--
+-- Or run all steps in sequence:
+--   python -m python.main --step all
+--
+-- Alternatively, use the deploy script:
+--   ./deployment/deploy.sh --step all
+--
+-- For CI/CD deployment via GitHub Actions, see:
+--   .github/workflows/deploy.yml
+-- =============================================================================

@@ -1,0 +1,137 @@
+# =============================================================================
+# deploy.yml — GitHub Actions: Deploy CMS Stars AI Agents to Snowflake
+#
+# Triggers:
+#   • Push to main branch (full deployment)
+#   • Manual trigger (workflow_dispatch) — choose which step to run
+#
+# Required GitHub Secrets (set in repo Settings → Secrets → Actions):
+#   SNOWFLAKE_ACCOUNT        — e.g. xy12345.us-east-1
+#   SNOWFLAKE_USER           — service-account username
+#   SNOWFLAKE_PASSWORD       — password (or leave blank if using key-pair)
+#   SNOWFLAKE_PRIVATE_KEY    — contents of the PEM private key (key-pair auth)
+#   SNOWFLAKE_ROLE           — e.g. CMS_STARS_ADMIN
+#   SNOWFLAKE_WAREHOUSE      — e.g. CMS_STARS_WH
+#   SNOWFLAKE_DATABASE       — e.g. CMS_STARS_DB
+#
+# NOTE: Snowflake SQL (sql/setup.sql) cannot call Python scripts directly.
+# This workflow first runs setup.sql via "python -m python.main --step setup",
+# then executes each Python step in order using the same CLI.
+# =============================================================================
+
+name: Deploy to Snowflake
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      step:
+        description: "Pipeline step to run"
+        required: false
+        default: "all"
+        type: choice
+        options:
+          - all
+          - setup
+          - load_data
+          - build_search
+          - build_semantic
+          - deploy_agents
+
+jobs:
+  deploy:
+    name: Deploy CMS Stars AI Agents
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    env:
+      SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+      SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+      SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+      SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_ROLE }}
+      SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
+      SNOWFLAKE_DATABASE: ${{ secrets.SNOWFLAKE_DATABASE }}
+      SNOWFLAKE_SCHEMA: SCHEMA_GOLD
+      CORTEX_LLM_MODEL: mistral-large2
+      CORTEX_EMBED_MODEL: snowflake-arctic-embed-l-v2.0
+      MEASUREMENT_YEAR: "2024"
+
+    steps:
+      # -----------------------------------------------------------------------
+      # 1. Check out the repository
+      # -----------------------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # -----------------------------------------------------------------------
+      # 2. Set up Python
+      # -----------------------------------------------------------------------
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      # -----------------------------------------------------------------------
+      # 3. Install Python dependencies
+      # -----------------------------------------------------------------------
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # -----------------------------------------------------------------------
+      # 4. (Optional) Write private key to disk for key-pair auth
+      #    Set the SNOWFLAKE_PRIVATE_KEY secret if using key-pair authentication.
+      #    Leave the secret empty to use password auth instead.
+      # -----------------------------------------------------------------------
+      - name: Write Snowflake private key
+        if: secrets.SNOWFLAKE_PRIVATE_KEY != ''
+        env:
+          SNOWFLAKE_PRIVATE_KEY: ${{ secrets.SNOWFLAKE_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.snowflake
+          echo "${SNOWFLAKE_PRIVATE_KEY}" > ~/.snowflake/rsa_key.p8
+          chmod 600 ~/.snowflake/rsa_key.p8
+          echo "SNOWFLAKE_PRIVATE_KEY_PATH=$HOME/.snowflake/rsa_key.p8" >> $GITHUB_ENV
+          echo "SNOWFLAKE_AUTHENTICATOR=snowflake_jwt" >> $GITHUB_ENV
+
+      # -----------------------------------------------------------------------
+      # 5. Step 1 — SQL setup: creates database, schemas, and all tables
+      #    (sql/setup.sql is executed by python.main via db_helpers.execute_sql_file)
+      #
+      #    NOTE: Snowflake SQL cannot call Python scripts directly.
+      #    The SQL DDL is run here by the Python CLI, which bridges the gap.
+      # -----------------------------------------------------------------------
+      - name: Run SQL setup (DDL)
+        if: ${{ github.event.inputs.step == 'all' || github.event.inputs.step == 'setup' || github.event_name == 'push' }}
+        run: python -m python.main --step setup
+
+      # -----------------------------------------------------------------------
+      # 6. Step 2 — Load sample data (python/generate_sample_data.py)
+      # -----------------------------------------------------------------------
+      - name: Load sample data
+        if: ${{ github.event.inputs.step == 'all' || github.event.inputs.step == 'load_data' || github.event_name == 'push' }}
+        run: python -m python.main --step load_data
+
+      # -----------------------------------------------------------------------
+      # 7. Step 3 — Build Cortex Search indexes (python/create_cortex_search.py)
+      # -----------------------------------------------------------------------
+      - name: Build Cortex Search indexes
+        if: ${{ github.event.inputs.step == 'all' || github.event.inputs.step == 'build_search' || github.event_name == 'push' }}
+        run: python -m python.main --step build_search
+
+      # -----------------------------------------------------------------------
+      # 8. Step 4 — Upload semantic models (python/create_semantic_models.py)
+      # -----------------------------------------------------------------------
+      - name: Upload semantic models
+        if: ${{ github.event.inputs.step == 'all' || github.event.inputs.step == 'build_semantic' || github.event_name == 'push' }}
+        run: python -m python.main --step build_semantic
+
+      # -----------------------------------------------------------------------
+      # 9. Step 5 — Deploy Cortex Agents (python/create_agents.py)
+      # -----------------------------------------------------------------------
+      - name: Deploy Cortex Agents
+        if: ${{ github.event.inputs.step == 'all' || github.event.inputs.step == 'deploy_agents' || github.event_name == 'push' }}
+        run: python -m python.main --step deploy_agents
