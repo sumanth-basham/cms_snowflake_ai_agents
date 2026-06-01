@@ -1,5 +1,5 @@
 """
-snowflake/connection.py — Snowflake connection factory.
+cortex/connection.py — Snowflake connection factory.
 
 Thin wrapper around python/db_helpers.py that integrates with the
 unified config/settings.py layer.  Supports key-pair, PAT, and password auth.

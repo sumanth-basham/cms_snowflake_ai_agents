@@ -1,5 +1,5 @@
 """
-snowflake/cortex_client.py — Snowflake Cortex Analyst/Agent API client.
+cortex/cortex_client.py — Snowflake Cortex Analyst/Agent API client.
 
 Bridges natural language questions to Snowflake Cortex Analyst and
 returns structured responses containing:

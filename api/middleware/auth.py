@@ -9,9 +9,8 @@ authentication is bypassed (development mode).
 import logging
 from typing import Optional
 
-from fastapi import HTTPException, Request, status
+from fastapi import HTTPException, Request, Security, status
 from fastapi.security import APIKeyHeader, APIKeyQuery
-from fastapi import Security
 
 logger = logging.getLogger(__name__)
 

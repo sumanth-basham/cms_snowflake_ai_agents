@@ -1,3 +1,3 @@
 """
-snowflake — Snowflake connection and Cortex client package.
+cortex — Snowflake connection and Cortex client package.
 """
