@@ -1,0 +1,64 @@
+version: "3.9"
+
+# =============================================================================
+# docker-compose.yml — CMS Snowflake AI Agents local development stack
+#
+# Services:
+#   api        — FastAPI Cortex Agent API (port 8000)
+#   frontend   — Streamlit dashboard (port 8501)
+#
+# Quick start:
+#   cp .env.example .env
+#   # Edit .env with your Snowflake credentials
+#   docker-compose up --build
+#
+# Access:
+#   API docs:    http://localhost:8000/docs
+#   Dashboard:   http://localhost:8501
+#   Health:      http://localhost:8000/health
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # FastAPI Cortex Agent API
+  # ---------------------------------------------------------------------------
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    image: cms-snowflake-api:latest
+    container_name: cms-api
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      API_HOST: "0.0.0.0"
+      API_PORT: "8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Streamlit Dashboard
+  # ---------------------------------------------------------------------------
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    image: cms-snowflake-frontend:latest
+    container_name: cms-frontend
+    ports:
+      - "8501:8501"
+    env_file:
+      - .env
+    environment:
+      FRONTEND_API_URL: "http://api:8000"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped

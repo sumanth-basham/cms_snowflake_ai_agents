@@ -1,0 +1,39 @@
+name: Tests
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run tests
+        env:
+          # Provide dummy values so pydantic-settings doesn't fail at import
+          SNOWFLAKE_ACCOUNT: test.snowflakecomputing.com
+          SNOWFLAKE_USER: test_user
+          SNOWFLAKE_ROLE: ANALYST
+          SNOWFLAKE_WAREHOUSE: TEST_WH
+          SNOWFLAKE_DATABASE: TEST_DB
+          SNOWFLAKE_SCHEMA: TEST_SCHEMA
+          ANTHROPIC_API_KEY: test-key
+          API_KEY: ""
+        run: python -m pytest tests/ -v --tb=short
